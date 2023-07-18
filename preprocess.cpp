@@ -1,4 +1,5 @@
 #include <fstream>
+#include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <string>
@@ -16,27 +17,85 @@ struct Vec3d {
         y(json_vec_3d[1].asDouble()),
         z(json_vec_3d[2].asDouble()) {}
 
+  double Length() {
+	return sqrt(x*x + y*y + z*z);
+  }
+
   double x;
   double y;
   double z;
 };
 
+Vec3d operator-(const Vec3d& a, const Vec3d& b) {
+	return Vec3d(a.x-b.x, a.y-b.y, a.z-b.z);
+}
+
+struct Detection {
+	Detection() = default;
+	Detection(uint32_t id, double timestamp, Vec3d position, Vec3d size, Vec3d angle) : 
+		id(id), timestamp(timestamp), position(position), size(size), angle(angle) {}
+
+	uint32_t id;
+	double timestamp;
+	Vec3d position;
+	Vec3d size;
+	Vec3d angle;
+};
+
 struct Track {
   Track() = default;
-  Track(uint32_t id, string token, vector<Vec3d> ps, vector<Vec3d> ss)
-      : track_id(id), instance_token(token), positions(ps), sizes(ss) {}
+  Track(uint32_t id, string token, Detection detection)
+      : track_id(id), instance_token(token) {
+		detections.push_back(detection);
+	  }
 
   uint32_t track_id;
   string instance_token;
-  vector<Vec3d> positions;
-  vector<Vec3d> sizes;
+  vector<Detection> detections;
 };
+
+struct Quaternion {
+	Quaternion() = default;
+	Quaternion(Json::Value json_quaternion) : 
+		w(json_quaternion[0].asDouble()),
+		x(json_quaternion[1].asDouble()),
+        y(json_quaternion[2].asDouble()),
+        z(json_quaternion[3].asDouble()) {}
+
+	double w;
+	double x;
+	double y;
+	double z;
+};
+
+Vec3d QuaternionToEulerAngles(Quaternion q) {
+    Vec3d angles;
+
+    // roll (x-axis rotation)
+    double sinr_cosp = 2 * (q.w * q.x + q.y * q.z);
+    double cosr_cosp = 1 - 2 * (q.x * q.x + q.y * q.y);
+    angles.x = std::atan2(sinr_cosp, cosr_cosp);
+ 
+    // pitch (y-axis rotation)
+    double sinp = 2 * (q.w * q.y - q.z * q.x);
+    if (std::abs(sinp) >= 1)
+        angles.y = std::copysign(M_PI / 2, sinp); // use 90 degrees if out of range
+    else
+        angles.y = std::asin(sinp);
+ 
+    // yaw (z-axis rotation)
+    double siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+    double cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+    angles.z = std::atan2(siny_cosp, cosy_cosp);
+ 
+    return angles;
+}
 
 void GetSamplesFromScene(const int& num_of_samples,
                          const string& first_sample_token,
                          const string& last_sample_token,
                          vector<string>* all_samples_token,
-                         vector<uint64_t>* all_samples_timestamps) {
+                         vector<double>* all_samples_timestamps) {
   const string sample_filename = "data/v1.0-mini/sample.json";
   ifstream sample_file(sample_filename, ios::binary);
   if (!sample_file.is_open()) {
@@ -54,20 +113,14 @@ void GetSamplesFromScene(const int& num_of_samples,
         if (token == current_sample_token) {
           ++sample_cnt;
           all_samples_token->push_back(token);
-          all_samples_timestamps->push_back(sample[i]["timestamp"].asUInt64());
+          all_samples_timestamps->push_back(static_cast<double>(sample[i]["timestamp"].asUInt64()) / 1e6);
 
-          const double t =
-              static_cast<double>(all_samples_timestamps->back()) / 1e6;
           cout << "sample_cnt: " << sample_cnt << " token: " << token
-               << " timestamp: " << fixed << setw(17) << setprecision(6) << t
+               << " timestamp: " << fixed << setw(16) << setprecision(6) << all_samples_timestamps->back()
                << endl;
 
           current_sample_token = sample[i]["next"].asString();
           if (current_sample_token.empty() || token == last_sample_token) {
-            cout << "token: " << token << " last_sample_token "
-                 << last_sample_token << " current_sample_token "
-                 << current_sample_token << " current_sample_token.empty() "
-                 << current_sample_token.empty() << endl;
             break;
           }
         }
@@ -75,6 +128,123 @@ void GetSamplesFromScene(const int& num_of_samples,
     }
   }
   sample_file.close();
+}
+
+void GetTracks(vector<string> all_samples_token, vector<double> all_samples_timestamps) {
+    const string sample_annotation_filename =
+        "data/v1.0-mini/sample_annotation.json";
+    ifstream sample_annotation_file(sample_annotation_filename, ios::binary);
+    if (!sample_annotation_file.is_open()) {
+      cout << "Fail to open " << sample_annotation_filename << endl;
+      return;
+    }
+
+    uint32_t next_id = 1;
+    map<string, uint32_t> instance_token_id_map;
+    vector<Track> tracks;
+
+	Json::Reader reader;
+    Json::Value sample_annotation;
+    if (reader.parse(sample_annotation_file, sample_annotation)) {
+      for (int t = 0; t < all_samples_token.size(); ++t) {
+        auto& current_sample_token = all_samples_token[t];
+		uint32_t detection_id = 0;
+        for (int i = 0; i < sample_annotation.size(); ++i) {
+          const string sample_token =
+              sample_annotation[i]["sample_token"].asString();
+          if (current_sample_token == sample_token) {
+            const string instance_token =
+                sample_annotation[i]["instance_token"].asString();
+            Vec3d position(sample_annotation[i]["translation"]);
+            Vec3d size(sample_annotation[i]["size"]);
+			Vec3d angles = QuaternionToEulerAngles(Quaternion(sample_annotation[i]["rotation"]));
+			Detection detection(++detection_id, all_samples_timestamps[t], position, size, angles);
+            auto iter = instance_token_id_map.find(instance_token);
+            if (iter == instance_token_id_map.end()) {
+              tracks.emplace_back(next_id, instance_token, detection);
+              instance_token_id_map.insert(
+                  make_pair(instance_token, next_id++));
+            } else {
+              const uint32_t current_track_index = iter->second - 1;
+              tracks[current_track_index].detections.push_back(detection);
+            }
+          }
+        }
+      }
+    }
+    for (const Track& track : tracks) {
+	  if (track.detections.size() < 10) continue;
+	  Vec3d distance = track.detections.back().position - track.detections.front().position;
+	  if (distance.Length() < 10.0) continue;
+
+      cout << "track: id " << track.track_id << " instance_token "
+           << track.instance_token << " num_of_positions "
+           << track.detections.size() << endl;
+      for (int i = 0; i < track.detections.size(); ++i) {
+        const auto& detection = track.detections[i];
+        cout << "T: " << fixed << setw(16) << setprecision(6) << detection.timestamp
+		<< "  position: " << detection.position.x << " " << detection.position.y << " " << detection.position.z
+		<< "  size: " << detection.size.x << " " << detection.size.y << " " << detection.size.z
+		<< "  angle: " << detection.angle.x << " " << detection.angle.y << " " << detection.angle.z << endl;
+      }
+      cout << endl;
+    }
+}
+
+
+void GetDetections(vector<string> all_samples_token, vector<double> all_samples_timestamps) {
+    const string sample_annotation_filename =
+        "data/v1.0-mini/sample_annotation.json";
+    ifstream sample_annotation_file(sample_annotation_filename, ios::binary);
+    if (!sample_annotation_file.is_open()) {
+      cout << "Fail to open " << sample_annotation_filename << endl;
+      return;
+    }
+
+    vector<vector<Detection>> detections(all_samples_token.size());
+
+	Json::Reader reader;
+    Json::Value sample_annotation;
+    if (reader.parse(sample_annotation_file, sample_annotation)) {
+      for (int t = 0; t < all_samples_token.size(); ++t) {
+        auto& current_sample_token = all_samples_token[t];
+		uint32_t detection_id = 0;
+        for (int i = 0; i < sample_annotation.size(); ++i) {
+          const string sample_token =
+              sample_annotation[i]["sample_token"].asString();
+          if (current_sample_token == sample_token) {
+            const string instance_token =
+                sample_annotation[i]["instance_token"].asString();
+            Vec3d position(sample_annotation[i]["translation"]);
+            Vec3d size(sample_annotation[i]["size"]);
+			Vec3d angles = QuaternionToEulerAngles(Quaternion(sample_annotation[i]["rotation"]));
+			Detection detection(++detection_id, all_samples_timestamps[t], position, size, angles);
+            detections[t].push_back(detection);
+          }
+        }
+      }
+    }
+
+	string output_filename = "detections.dat";
+	ofstream output_file(output_filename, ios::out | ios::trunc);
+    if (!output_file.is_open()) {
+      cout << "Fail to open " << output_filename << endl;
+      return;
+    }
+
+    for (int t = 0; t < all_samples_timestamps.size(); ++t) {
+      output_file << "frame: " << t+1 << " detections_num: " << detections[t].size() << " timestamp: "
+           << fixed << setw(16) << setprecision(6) << all_samples_timestamps[t] << endl;
+
+      for (int i = 0; i < detections[t].size(); ++i) {
+        const auto& detection = detections[t][i];
+        output_file << "detection: id: " << detection.id
+		<< "  position: " << detection.position.x << " " << detection.position.y << " " << detection.position.z
+		<< "  size: " << detection.size.x << " " << detection.size.y << " " << detection.size.z
+		<< "  angle: " << detection.angle.x << " " << detection.angle.y << " " << detection.angle.z << endl;
+      }
+      output_file << endl;
+    }
 }
 
 void readDataFromJsonFile() {
@@ -98,72 +268,12 @@ void readDataFromJsonFile() {
          << " last_sample_token " << last_sample_token << endl;
 
     vector<string> all_samples_token;
-    vector<uint64_t> all_samples_timestamps;
+    vector<double> all_samples_timestamps;
     GetSamplesFromScene(num_of_samples, first_sample_token, last_sample_token,
                         &all_samples_token, &all_samples_timestamps);
 
-    const string sample_annotation_filename =
-        "data/v1.0-mini/sample_annotation.json";
-    ifstream sample_annotation_file(sample_annotation_filename, ios::binary);
-    if (!sample_annotation_file.is_open()) {
-      cout << "Fail to open " << sample_annotation_filename << endl;
-      return;
-    }
+	GetDetections(all_samples_token, all_samples_timestamps);
 
-    uint32_t next_id = 1;
-    map<string, uint32_t> instance_token_id_map;
-    vector<Track> tracks;
-
-    Json::Value sample_annotation;
-    if (reader.parse(sample_annotation_file, sample_annotation)) {
-      for (const string& current_sample_token : all_samples_token) {
-        cout << "current_sample_token: " << current_sample_token << endl;
-        for (int i = 0; i < sample_annotation.size(); ++i) {
-          const string sample_token =
-              sample_annotation[i]["sample_token"].asString();
-          //   cout << "i: " << i
-          //        << "  current_sample_token: " << current_sample_token
-          //        << "  sample_token: " << sample_token
-          //        << "  current_sample_token == sample_token: "
-          //        << (current_sample_token == sample_token) << endl;
-          if (current_sample_token == sample_token) {
-            const string instance_token =
-                sample_annotation[i]["instance_token"].asString();
-            Vec3d position(sample_annotation[i]["translation"]);
-            Vec3d size(sample_annotation[i]["size"]);
-            auto iter = instance_token_id_map.find(instance_token);
-            if (iter == instance_token_id_map.end()) {
-              vector<Vec3d> positions;
-              positions.push_back(position);
-              vector<Vec3d> sizes;
-              sizes.push_back(size);
-              tracks.emplace_back(next_id, instance_token, positions, sizes);
-              instance_token_id_map.insert(
-                  make_pair(instance_token, next_id++));
-              cout << "Add new track: id " << next_id - 1 << " instance_token "
-                   << instance_token << endl;
-            } else {
-              //   cout << "instance_token in map: " << iter->first << endl;
-              const uint32_t current_track_index = iter->second - 1;
-              tracks[current_track_index].positions.push_back(position);
-              tracks[current_track_index].sizes.push_back(size);
-            }
-          }
-        }
-      }
-    }
-    for (const Track& track : tracks) {
-      cout << "track: id " << track.track_id << " instance_token "
-           << track.instance_token << " num_of_positions "
-           << track.positions.size() << endl;
-      for (int i = 0; i < track.positions.size(); ++i) {
-        const auto& position = track.positions[i];
-        const auto& size = track.sizes[i];
-        cout << position.x << " " << position.y << " " << position.z << " "
-             << size.x << " " << size.y << " " << size.z << endl;
-      }
-      cout << endl;
-    }
   }
   srcFile.close();
 }
