@@ -1,0 +1,42 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/kalman_filter.h
+eigen3/Eigen/Dense
+-
+vector
+-
+
+/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/lidar_detection.h
+iostream
+-
+vector
+-
+math.h
+/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/math.h
+
+/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/math.h
+cmath
+-
+eigen3/Eigen/Dense
+-
+vector
+-
+
+/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/track.cc
+track.h
+/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/track.h
+
+/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/track.h
+vector
+-
+kalman_filter.h
+/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/kalman_filter.h
+lidar_detection.h
+/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/lidar_detection.h
+
