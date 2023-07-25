@@ -11,28 +11,44 @@ class Tracker {
   Tracker() = default;
   ~Tracker() = default;
 
-  Tracker(const std::string& output_filename)
-      : output_filename_(output_filename) {}
+  Tracker(const std::string& scene_name) : scene_name_(scene_name) {}
 
-  void Run(const LidarFrame& frame, const CameraFrame& camera_frame);
+  void Run(const LidarFrame& frame);
+
+  void Run(const CameraFrame& camera_frame);
 
   void PredictTracks(const double& timestamp);
 
-  void DataAssociation(const LidarFrame& frame,
-                       std::vector<std::pair<int, int>>* association_pairs,
-                       std::vector<int>* unassociated_track_indices,
-                       std::vector<int>* unassociated_detection_indices);
+  void DataAssociation(
+      const LidarFrame& frame,
+      std::vector<std::pair<uint32_t, uint32_t>>* association_pairs,
+      std::vector<uint32_t>* unassociated_track_indices,
+      std::vector<uint32_t>* unassociated_detection_indices);
 
-  void UpdateTracks(const LidarFrame& frame,
-                    const std::vector<std::pair<int, int>>& association_pairs);
+  void DataAssociation(
+      const CameraFrame& camera_frame,
+      std::vector<std::pair<uint32_t, uint32_t>>* association_pairs,
+      std::vector<uint32_t>* unassociated_track_indices,
+      std::vector<uint32_t>* unassociated_detection_indices);
 
-  void ManagementTracks(const LidarFrame& frame,
-                        const std::vector<int>& unassociated_track_indices,
-                        const std::vector<int>& unassociated_detection_indices);
+  void UpdateTracks(
+      const LidarFrame& frame,
+      const std::vector<std::pair<uint32_t, uint32_t>>& association_pairs);
 
-  std::vector<Track> PublishTracks(const LidarFrame& frame);
+  void UpdateTracks(
+      const CameraFrame& camera_frame,
+      const std::vector<std::pair<uint32_t, uint32_t>>& association_pairs);
+
+  void ManagementTracks(
+      const LidarFrame& frame,
+      const std::vector<uint32_t>& unassociated_track_indices,
+      const std::vector<uint32_t>& unassociated_detection_indices);
+
+  std::vector<Track> PublishTracks();
 
  private:
   std::vector<Track> tracks_;
-  const std::string output_filename_;
+  const std::string scene_name_;
+  int frame_index_;
+  double frame_timestamp_;
 };

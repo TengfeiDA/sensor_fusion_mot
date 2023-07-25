@@ -65,7 +65,7 @@ std::vector<std::vector<Track>> GetGroundTruthTracksFromFile(
 
 std::vector<LidarFrame> GetDetectionsFromFile(const std::string& scene_name) {
   const std::string lidar_detection_filename =
-      "../data/" + scene_name + "_detections.dat";
+      "../data/" + scene_name + "_lidar_detections.dat";
   std::ifstream srcFile(lidar_detection_filename, std::ios::in);
   if (!srcFile.is_open()) {
     std::cout << "Fail to open " << lidar_detection_filename << std::endl;

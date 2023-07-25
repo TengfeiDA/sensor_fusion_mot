@@ -29,16 +29,20 @@ Vec2d RotateByTheta(const Vec2d p, const double theta) {
 }  // namespace
 
 uint32_t Track::next_track_id_ = 1;
+CameraProjection Track::camera_projection_;
 
-Track::Track(const LidarDetection& detection)
+Track::Track(const LidarDetection& detection, const Category category)
     : id_(next_track_id_++),
       created_timestamp_(detection.timestamp()),
       timestamp_(detection.timestamp()),
-      last_update_timestamp_(detection.timestamp()),
+      last_lidar_update_timestamp_(detection.timestamp()),
+      last_camera_update_timestamp_(0.0),
+      category_(category),
       position_(detection.position()),
       size_(detection.size()),
       yaw_(detection.yaw()),
-      associated_lidar_detections_cnt_(1) {
+      associated_lidar_detections_cnt_(1),
+      associated_camera_detections_cnt_(0) {
   velocity_ = Vec3d();
   acceleration_ = Vec3d();
   const Eigen::Matrix<double, 9, 1>& state{
@@ -64,6 +68,10 @@ Track::Track(const LidarDetection& detection)
 
   yaw_kf_.set_state(yaw_state);
   yaw_kf_.set_covariance(yaw_covariance);
+
+  category_vote_.insert(std::make_pair(Category::kUnknwon, 0));
+  category_vote_.insert(std::make_pair(Category::kPerson, 0));
+  category_vote_.insert(std::make_pair(Category::kVehicle, 0));
 }
 
 void Track::Predict(const double timestamp) {
@@ -138,13 +146,22 @@ void Track::Update(const LidarDetection& detection) {
   size_ = size_ * kSmoothFilterCoefficient +
           detection.size() * (1 - kSmoothFilterCoefficient);
 
-  last_update_timestamp_ = detection.timestamp();
+  last_lidar_update_timestamp_ = detection.timestamp();
   ++associated_lidar_detections_cnt_;
+}
+
+void Track::Update(const CameraDetection& detection) {
+  last_camera_update_timestamp_ = detection.timestamp();
+  ++associated_camera_detections_cnt_;
+
+  if (++category_vote_[detection.category()] > category_vote_[category_]) {
+    category_ = detection.category();
+  }
 }
 
 bool Track::IsLost() const {
   const double kTrackLostTimeGating = IsConfirmed() ? 1.5 : 0.1;  // second
-  return timestamp_ - last_update_timestamp_ > kTrackLostTimeGating;
+  return timestamp_ - last_lidar_update_timestamp_ > kTrackLostTimeGating;
 }
 
 bool Track::IsConfirmed() const { return associated_lidar_detections_cnt_ > 2; }
@@ -161,4 +178,40 @@ std::vector<Vec2d> Track::GetCorners() const {
   const Vec2d bottom_left = center + RotateByTheta(bl_shift, theta);
   const Vec2d bottom_right = center + RotateByTheta(br_shift, theta);
   return std::vector<Vec2d>{top_left, bottom_left, bottom_right, top_right};
+}
+
+bool Track::GetProjectionOnImage(const Transformation2d& world_to_vehicle,
+                                 AABox* bbox) const {
+  const std::vector<Vec2d> corners = GetCorners();
+  int min_x = CameraProjection::kImageWidthPixel;
+  int max_x = 0;
+  int min_y = CameraProjection::kImageHeightPixel;
+  int max_y = 0;
+  for (int i = 0; i < 4; ++i) {
+    const Vec2d corner_vehicle = world_to_vehicle.Transform(corners[i]);
+    const Vec3d corner_vehicle_bottom(corner_vehicle, 0.);
+    const Vec3d corner_vehicle_top(corner_vehicle, height());
+
+    int u, v;
+    if (camera_projection_.VehicleToImage(corner_vehicle_bottom, &u, &v)) {
+      min_x = std::min(min_x, u);
+      max_x = std::max(max_x, u);
+      min_y = std::min(min_y, v);
+      max_y = std::max(max_y, v);
+    }
+    if (camera_projection_.VehicleToImage(corner_vehicle_top, &u, &v)) {
+      min_x = std::min(min_x, u);
+      max_x = std::max(max_x, u);
+      min_y = std::min(min_y, v);
+      max_y = std::max(max_y, v);
+    }
+  }
+
+  static constexpr int margin = 20;
+  if (max_x > min_x + margin && max_y > min_y + margin) {
+    *bbox = AABox(min_x, min_y, max_x - min_x, max_y - min_y);
+    return true;
+  }
+
+  return false;
 }

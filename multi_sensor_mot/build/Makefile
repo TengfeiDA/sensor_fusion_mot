@@ -123,6 +123,33 @@ multi_sensor_mot/fast:
 	$(MAKE) -f CMakeFiles/multi_sensor_mot.dir/build.make CMakeFiles/multi_sensor_mot.dir/build
 .PHONY : multi_sensor_mot/fast
 
+hungarian.o: hungarian.cc.o
+
+.PHONY : hungarian.o
+
+# target to build an object file
+hungarian.cc.o:
+	$(MAKE) -f CMakeFiles/multi_sensor_mot.dir/build.make CMakeFiles/multi_sensor_mot.dir/hungarian.cc.o
+.PHONY : hungarian.cc.o
+
+hungarian.i: hungarian.cc.i
+
+.PHONY : hungarian.i
+
+# target to preprocess a source file
+hungarian.cc.i:
+	$(MAKE) -f CMakeFiles/multi_sensor_mot.dir/build.make CMakeFiles/multi_sensor_mot.dir/hungarian.cc.i
+.PHONY : hungarian.cc.i
+
+hungarian.s: hungarian.cc.s
+
+.PHONY : hungarian.s
+
+# target to generate assembly for a file
+hungarian.cc.s:
+	$(MAKE) -f CMakeFiles/multi_sensor_mot.dir/build.make CMakeFiles/multi_sensor_mot.dir/hungarian.cc.s
+.PHONY : hungarian.cc.s
+
 main.o: main.cc.o
 
 .PHONY : main.o
@@ -240,6 +267,9 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
 	@echo "... multi_sensor_mot"
+	@echo "... hungarian.o"
+	@echo "... hungarian.i"
+	@echo "... hungarian.s"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"

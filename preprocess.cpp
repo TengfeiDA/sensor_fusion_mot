@@ -50,6 +50,21 @@ struct Quaternion {
   double z;
 };
 
+struct CameraCalibration {
+  CameraCalibration() = default;
+  CameraCalibration(Vec3d translation, Quaternion rotation,
+                    double _intrinsic[4])
+      : translation(translation), rotation(rotation) {
+    for (int i = 0; i < 4; ++i) {
+      intrinsic[i] = _intrinsic[i];
+    }
+  }
+
+  Vec3d translation;
+  Quaternion rotation;
+  double intrinsic[4];
+};
+
 Vec3d QuaternionToEulerAngles(Quaternion q) {
   Vec3d angles;
 
@@ -100,6 +115,8 @@ struct Detection {
   Vec3d angle;
 };
 
+constexpr int kPerson = 0, kVehicle = 1, kUnknwon = 2;
+
 struct Track {
   Track() = default;
   Track(uint32_t id, string token, Detection detection)
@@ -107,6 +124,7 @@ struct Track {
 
   uint32_t id;
   string instance_token;
+  int category;
   Detection detection;
 };
 
@@ -205,6 +223,7 @@ void GetSamplesFromScene(const int& num_of_samples,
               QuaternionToEulerAngles(Quaternion(ego_pose[i]["rotation"]));
           all_samples_ego_poses->emplace_back(
               ego_pose_timestamp, Vec3d(ego_pose[i]["translation"]), angles.z);
+          break;
         }
       }
     }
@@ -258,7 +277,59 @@ void GetTracks(const vector<string>& all_samples_token,
     }
   }
 
-  string output_filename = "./lidar_mot/data/" + scene_name + "_gt_tracks.dat";
+  const string category_filename = "data/v1.0-mini/category.json";
+  ifstream category_file(category_filename, ios::binary);
+  if (!category_file.is_open()) {
+    cout << "Fail to open " << category_filename << endl;
+    return;
+  }
+
+  Json::Value category_json;
+  map<string, int> token_category_map;
+  if (reader.parse(category_file, category_json)) {
+    for (int i = 0; i < category_json.size(); ++i) {
+      const string token = category_json[i]["token"].asString();
+      const string name = category_json[i]["name"].asString();
+      int category = kUnknwon;
+      if (name.find("human") != string::npos) {
+        category = kPerson;
+      } else if (name.find("vehicle") != string::npos) {
+        category = kVehicle;
+      }
+      token_category_map.insert(make_pair(token, category));
+    }
+  }
+
+  const string instance_filename = "data/v1.0-mini/instance.json";
+  ifstream instance_file(instance_filename, ios::binary);
+  if (!instance_file.is_open()) {
+    cout << "Fail to open " << instance_filename << endl;
+    return;
+  }
+
+  Json::Value instance_json;
+  if (reader.parse(instance_file, instance_json)) {
+    for (int t = 0; t < tracks.size(); ++t) {
+      for (Track& track : tracks[t]) {
+        for (int i = 0; i < instance_json.size(); ++i) {
+          if (instance_json[i]["token"].asString() == track.instance_token) {
+            const string category_token =
+                instance_json[i]["category_token"].asString();
+            if (token_category_map.find(category_token) !=
+                token_category_map.end()) {
+              track.category = token_category_map[category_token];
+            } else {
+              track.category = kUnknwon;
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  string output_filename =
+      "./multi_sensor_mot/data/" + scene_name + "_gt_tracks.dat";
   ofstream output_file(output_filename, ios::out | ios::trunc);
   if (!output_file.is_open()) {
     cout << "Fail to open " << output_filename << endl;
@@ -273,10 +344,11 @@ void GetTracks(const vector<string>& all_samples_token,
     for (int i = 0; i < tracks[t].size(); ++i) {
       const auto& track = tracks[t][i];
       const auto& detection = track.detection;
-      output_file << track.id << "  " << detection.position.x << " "
-                  << detection.position.y << " " << detection.position.z << " "
-                  << detection.size.x << " " << detection.size.y << " "
-                  << detection.size.z << " " << detection.angle.z << endl;
+      output_file << track.id << "  " << track.category << "  "
+                  << detection.position.x << " " << detection.position.y << " "
+                  << detection.position.z << " " << detection.size.x << " "
+                  << detection.size.y << " " << detection.size.z << " "
+                  << detection.angle.z << endl;
     }
     output_file << endl;
   }
@@ -327,7 +399,8 @@ void GetDetections(const vector<string>& all_samples_token,
     }
   }
 
-  string output_filename = "./lidar_mot/data/" + scene_name + "_detections.dat";
+  string output_filename =
+      "./multi_sensor_mot/data/" + scene_name + "_lidar_detections.dat";
   ofstream output_file(output_filename, ios::out | ios::trunc);
   if (!output_file.is_open()) {
     cout << "Fail to open " << output_filename << endl;
@@ -366,8 +439,10 @@ void GetFrontCameraImages(const vector<string>& all_samples_token,
     return;
   }
 
+  vector<uint64_t> all_camera_timestamps_uint64;
   vector<double> all_camera_timestamps;
   vector<string> all_image_filenames;
+  string calibration_token;
 
   Json::Reader reader;
   Json::Value sample_data;
@@ -381,15 +456,75 @@ void GetFrontCameraImages(const vector<string>& all_samples_token,
             const string new_filename =
                 "../data/" + filename.substr(8, filename.length());
             all_image_filenames.push_back(new_filename);
-            all_camera_timestamps.push_back(
-                static_cast<double>(sample_data[i]["timestamp"].asUInt64()) /
-                1e6);
+            uint64_t timestamp = sample_data[i]["timestamp"].asUInt64();
+            all_camera_timestamps_uint64.push_back(timestamp);
+            all_camera_timestamps.push_back(static_cast<double>(timestamp) /
+                                            1e6);
+            calibration_token =
+                sample_data[i]["calibrated_sensor_token"].asString();
             break;
           }
         }
       }
     }
   }
+
+  const string calibrated_sensor_filename =
+      "data/v1.0-mini/calibrated_sensor.json";
+  ifstream calibrated_sensor_file(calibrated_sensor_filename, ios::binary);
+  if (!calibrated_sensor_file.is_open()) {
+    cout << "Fail to open " << calibrated_sensor_filename << endl;
+    return;
+  }
+
+  CameraCalibration camera_calibration;
+
+  Json::Value calibration;
+  if (reader.parse(calibrated_sensor_file, calibration)) {
+    for (int i = 0; i < calibration.size(); ++i) {
+      if (calibration_token == calibration[i]["token"].asString()) {
+        Vec3d translation(calibration[i]["translation"]);
+        Quaternion rotation(calibration[i]["rotation"]);
+        double camera_intrinsic[4];
+        camera_intrinsic[0] =
+            calibration[i]["camera_intrinsic"][0][0].asDouble();
+        camera_intrinsic[1] =
+            calibration[i]["camera_intrinsic"][0][2].asDouble();
+        camera_intrinsic[2] =
+            calibration[i]["camera_intrinsic"][1][1].asDouble();
+        camera_intrinsic[3] =
+            calibration[i]["camera_intrinsic"][1][2].asDouble();
+        camera_calibration =
+            CameraCalibration(translation, rotation, camera_intrinsic);
+        break;
+      }
+    }
+  }
+
+  const string ego_pose_filename = "data/v1.0-mini/ego_pose.json";
+  ifstream ego_pose_file(ego_pose_filename, ios::binary);
+  if (!ego_pose_file.is_open()) {
+    cout << "Fail to open " << ego_pose_filename << endl;
+    return;
+  }
+
+  vector<EgoPose> all_samples_ego_poses;
+  Json::Value ego_pose;
+  if (reader.parse(ego_pose_file, ego_pose)) {
+    for (int t = 0; t < all_camera_timestamps_uint64.size(); ++t) {
+      for (int i = 0; i < ego_pose.size(); ++i) {
+        const uint64_t ego_pose_timestamp = ego_pose[i]["timestamp"].asUInt64();
+        if (all_camera_timestamps_uint64[t] == ego_pose_timestamp) {
+          Vec3d angles =
+              QuaternionToEulerAngles(Quaternion(ego_pose[i]["rotation"]));
+          all_samples_ego_poses.emplace_back(
+              ego_pose_timestamp, Vec3d(ego_pose[i]["translation"]), angles.z);
+          break;
+        }
+      }
+    }
+  }
+  ego_pose_file.close();
 
   string output_filename =
       "./multi_sensor_mot/data/" + scene_name + "_camera_detections.dat";
@@ -399,11 +534,50 @@ void GetFrontCameraImages(const vector<string>& all_samples_token,
     return;
   }
 
-  output_file << all_camera_timestamps.size() << std::endl;
+  const std::string camera_detection_filename =
+      "./multi_sensor_mot/data/" + scene_name + "-bboxes.dat";
+  std::ifstream srcFile(camera_detection_filename, std::ios::in);
+
+  std::vector<std::vector<std::vector<int>>> camera_detections;
   for (int t = 0; t < all_camera_timestamps.size(); ++t) {
-    output_file << t + 1 << "  " << fixed << setw(16) << setprecision(6)
-                << all_camera_timestamps[t] << endl;
+    int detections_num;
+    srcFile >> detections_num;
+    std::vector<std::vector<int>> detections(detections_num);
+    for (int i = 0; i < detections_num; ++i) {
+      int id, x, y, w, h, type;
+      srcFile >> id >> x >> y >> w >> h >> type;
+      detections[i] = {id, x, y, w, h, type};
+    }
+    camera_detections.push_back(detections);
+  }
+  srcFile.close();
+
+  output_file << all_camera_timestamps.size() << std::endl;
+
+  output_file << camera_calibration.translation.x << "  "
+              << camera_calibration.translation.y << "  "
+              << camera_calibration.translation.z << "  "
+              << camera_calibration.rotation.w << "  "
+              << camera_calibration.rotation.x << "  "
+              << camera_calibration.rotation.y << "  "
+              << camera_calibration.rotation.z << endl;
+  for (int i = 0; i < 4; ++i)
+    output_file << camera_calibration.intrinsic[i] << "  ";
+  output_file << endl;
+
+  for (int t = 0; t < all_camera_timestamps.size(); ++t) {
+    output_file << t + 1 << " " << camera_detections[t].size() << " " << fixed
+                << setw(16) << setprecision(6) << all_camera_timestamps[t]
+                << endl;
     output_file << all_image_filenames[t] << endl;
+    output_file << all_samples_ego_poses[t].position.x << " "
+                << all_samples_ego_poses[t].position.y << " "
+                << all_samples_ego_poses[t].yaw << endl;
+    for (const auto& detections : camera_detections[t]) {
+      output_file << detections[0] << " " << detections[1] << " "
+                  << detections[2] << " " << detections[3] << " "
+                  << detections[4] << " " << detections[5] << endl;
+    }
     output_file << endl;
   }
   output_file.close();
@@ -442,13 +616,13 @@ void readDataFromJsonFile() {
                           &all_samples_timestamps_uint64,
                           &all_samples_ego_poses);
 
-      // GetDetections(all_samples_token, all_samples_timestamps,
-      //               all_samples_ego_poses, scene_name);
+      GetDetections(all_samples_token, all_samples_timestamps,
+                    all_samples_ego_poses, scene_name);
 
       // GetTracks(all_samples_token, all_samples_timestamps, scene_name);
 
-      GetFrontCameraImages(all_samples_token, all_samples_timestamps,
-                           scene_name);
+      // GetFrontCameraImages(all_samples_token, all_samples_timestamps,
+      //                      scene_name);
     }
   }
   srcFile.close();

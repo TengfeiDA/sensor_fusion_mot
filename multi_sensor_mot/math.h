@@ -31,6 +31,7 @@ class Vec3d {
   Vec3d() : x_(0.0), y_(0.0), z_(0.0) {}
   Vec3d(double x, double y, double z) : x_(x), y_(y), z_(z) {}
   Vec3d(const Eigen::Vector3d& p) : x_(p[0]), y_(p[1]), z_(p[2]) {}
+  Vec3d(const Vec2d& xy, const double z) : x_(xy.x()), y_(xy.y()), z_(z) {}
 
   double x() const { return x_; }
   double y() const { return y_; }
@@ -75,4 +76,80 @@ class Transformation2d {
  private:
   Vec2d translation_;
   double theta_;
+};
+
+class Transformation3d {
+ public:
+  Transformation3d() = default;
+  ~Transformation3d() = default;
+
+  Transformation3d(const Vec3d translation, const double q_w, const double q_x,
+                   const double q_y, const double q_z)
+      : translation_(translation),
+        quaternion_(Eigen::Quaterniond(q_w, q_x, q_y, q_z)) {}
+
+  Vec3d translation() const { return translation_; }
+  Eigen::Quaterniond quaternion() const { return quaternion_; }
+
+  Vec3d Transform(const Vec3d point) const {
+    const Vec3d p = point - translation_;
+    Eigen::Quaterniond pp;
+    pp.w() = 0;
+    pp.vec() = Eigen::Vector3d(p.x(), p.y(), p.z());
+    Eigen::Quaterniond rotated_pp = quaternion_.inverse() * pp * quaternion_;
+    Eigen::Vector3d rotated_p = rotated_pp.vec();
+    return Vec3d(rotated_p);
+  }
+
+ private:
+  Vec3d translation_;
+  Eigen::Quaterniond quaternion_;
+};
+
+class CameraProjection {
+ public:
+  static constexpr int kImageWidthPixel = 1600;
+  static constexpr int kImageHeightPixel = 900;
+  static constexpr int kImageMarginPixel = 50;
+
+  CameraProjection() = default;
+  ~CameraProjection() = default;
+
+  CameraProjection(Vec3d translation, double rotation[4], double intrinsic[4])
+      : vehicle_to_camera_(Transformation3d(
+            translation, rotation[0], rotation[1], rotation[2], rotation[3])),
+        focal_length_x_(intrinsic[0]),
+        focal_length_y_(intrinsic[2]),
+        origin_shift_x_(intrinsic[1]),
+        origin_shift_y_(intrinsic[3]) {}
+
+  Vec3d VehileToCamera(const Vec3d& point) const {
+    return vehicle_to_camera_.Transform(point);
+  }
+
+  bool VehicleToImage(const Vec3d& point, int* u, int* v) const {
+    const Vec3d point_in_camera = vehicle_to_camera_.Transform(point);
+    if (point_in_camera.z() < 0) return false;
+    const double normalized_x = point_in_camera.x() / point_in_camera.z();
+    const double normalized_y = point_in_camera.y() / point_in_camera.z();
+    *u = normalized_x * focal_length_x_ + origin_shift_x_;
+    *v = normalized_y * focal_length_y_ + origin_shift_y_;
+    if (*u < -kImageMarginPixel || *u >= kImageWidthPixel + kImageMarginPixel ||
+        *v < -kImageMarginPixel || *v > kImageHeightPixel + kImageMarginPixel) {
+      return false;
+    }
+    return true;
+  }
+
+  double focal_length_x() const { return focal_length_x_; }
+  double focal_length_y() const { return focal_length_y_; }
+  double origin_shift_x() const { return origin_shift_x_; }
+  double origin_shift_y() const { return origin_shift_y_; }
+
+ private:
+  Transformation3d vehicle_to_camera_;
+  double focal_length_x_;
+  double focal_length_y_;
+  double origin_shift_x_;
+  double origin_shift_y_;
 };

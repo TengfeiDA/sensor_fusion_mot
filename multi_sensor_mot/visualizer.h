@@ -12,15 +12,18 @@ class Visualizer {
   Visualizer() = default;
   ~Visualizer() = default;
 
-  Visualizer(const LidarFrame& lidar_frame, const CameraFrame& camera_frame,
-             const std::vector<Track>& tracks);
+  Visualizer(const CameraFrame& camera_frame, const std::vector<Track>& tracks,
+             const std::string scene_name);
 
   void DrawGrids();
   void DrawCoordinates();
   void DrawTracks(const std::vector<Track>& tracks);
   void DrawGTTracks(const std::vector<Track>& tracks);
-  void DrawBBoxOnImage(const CameraFrame& camera_frame);
-  void SaveImages(const int frame_index, const int tracks_num);
+  void DrawDetectionsOnImage(const CameraFrame& camera_frame);
+  void DrawTrackBBoxOnImage(const CameraFrame& camera_frame,
+                            const std::vector<Track>& tracks);
+  void SaveImages(const int frame_index, const int tracks_num,
+                  const std::string scene_name);
 
  private:
   cv::Mat final_image_;

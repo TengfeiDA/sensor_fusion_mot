@@ -57,9 +57,22 @@ include CMakeFiles/multi_sensor_mot.dir/progress.make
 # Include the compile flags for this target's objects.
 include CMakeFiles/multi_sensor_mot.dir/flags.make
 
+CMakeFiles/multi_sensor_mot.dir/hungarian.cc.o: CMakeFiles/multi_sensor_mot.dir/flags.make
+CMakeFiles/multi_sensor_mot.dir/hungarian.cc.o: ../hungarian.cc
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/multi_sensor_mot.dir/hungarian.cc.o"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/multi_sensor_mot.dir/hungarian.cc.o -c /home/tengfeida/sensor_fusion_mot/multi_sensor_mot/hungarian.cc
+
+CMakeFiles/multi_sensor_mot.dir/hungarian.cc.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/multi_sensor_mot.dir/hungarian.cc.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/tengfeida/sensor_fusion_mot/multi_sensor_mot/hungarian.cc > CMakeFiles/multi_sensor_mot.dir/hungarian.cc.i
+
+CMakeFiles/multi_sensor_mot.dir/hungarian.cc.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/multi_sensor_mot.dir/hungarian.cc.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/tengfeida/sensor_fusion_mot/multi_sensor_mot/hungarian.cc -o CMakeFiles/multi_sensor_mot.dir/hungarian.cc.s
+
 CMakeFiles/multi_sensor_mot.dir/main.cc.o: CMakeFiles/multi_sensor_mot.dir/flags.make
 CMakeFiles/multi_sensor_mot.dir/main.cc.o: ../main.cc
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/multi_sensor_mot.dir/main.cc.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/multi_sensor_mot.dir/main.cc.o"
 	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/multi_sensor_mot.dir/main.cc.o -c /home/tengfeida/sensor_fusion_mot/multi_sensor_mot/main.cc
 
 CMakeFiles/multi_sensor_mot.dir/main.cc.i: cmake_force
@@ -72,7 +85,7 @@ CMakeFiles/multi_sensor_mot.dir/main.cc.s: cmake_force
 
 CMakeFiles/multi_sensor_mot.dir/track.cc.o: CMakeFiles/multi_sensor_mot.dir/flags.make
 CMakeFiles/multi_sensor_mot.dir/track.cc.o: ../track.cc
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/multi_sensor_mot.dir/track.cc.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/multi_sensor_mot.dir/track.cc.o"
 	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/multi_sensor_mot.dir/track.cc.o -c /home/tengfeida/sensor_fusion_mot/multi_sensor_mot/track.cc
 
 CMakeFiles/multi_sensor_mot.dir/track.cc.i: cmake_force
@@ -85,7 +98,7 @@ CMakeFiles/multi_sensor_mot.dir/track.cc.s: cmake_force
 
 CMakeFiles/multi_sensor_mot.dir/tracker.cc.o: CMakeFiles/multi_sensor_mot.dir/flags.make
 CMakeFiles/multi_sensor_mot.dir/tracker.cc.o: ../tracker.cc
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/multi_sensor_mot.dir/tracker.cc.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/multi_sensor_mot.dir/tracker.cc.o"
 	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/multi_sensor_mot.dir/tracker.cc.o -c /home/tengfeida/sensor_fusion_mot/multi_sensor_mot/tracker.cc
 
 CMakeFiles/multi_sensor_mot.dir/tracker.cc.i: cmake_force
@@ -98,7 +111,7 @@ CMakeFiles/multi_sensor_mot.dir/tracker.cc.s: cmake_force
 
 CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o: CMakeFiles/multi_sensor_mot.dir/flags.make
 CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o: ../visualizer.cc
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o"
 	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o -c /home/tengfeida/sensor_fusion_mot/multi_sensor_mot/visualizer.cc
 
 CMakeFiles/multi_sensor_mot.dir/visualizer.cc.i: cmake_force
@@ -111,6 +124,7 @@ CMakeFiles/multi_sensor_mot.dir/visualizer.cc.s: cmake_force
 
 # Object files for target multi_sensor_mot
 multi_sensor_mot_OBJECTS = \
+"CMakeFiles/multi_sensor_mot.dir/hungarian.cc.o" \
 "CMakeFiles/multi_sensor_mot.dir/main.cc.o" \
 "CMakeFiles/multi_sensor_mot.dir/track.cc.o" \
 "CMakeFiles/multi_sensor_mot.dir/tracker.cc.o" \
@@ -119,6 +133,7 @@ multi_sensor_mot_OBJECTS = \
 # External object files for target multi_sensor_mot
 multi_sensor_mot_EXTERNAL_OBJECTS =
 
+multi_sensor_mot: CMakeFiles/multi_sensor_mot.dir/hungarian.cc.o
 multi_sensor_mot: CMakeFiles/multi_sensor_mot.dir/main.cc.o
 multi_sensor_mot: CMakeFiles/multi_sensor_mot.dir/track.cc.o
 multi_sensor_mot: CMakeFiles/multi_sensor_mot.dir/tracker.cc.o
@@ -128,7 +143,7 @@ multi_sensor_mot: /usr/lib/x86_64-linux-gnu/libopencv_imgcodecs.so.4.2.0
 multi_sensor_mot: /usr/lib/x86_64-linux-gnu/libopencv_imgproc.so.4.2.0
 multi_sensor_mot: /usr/lib/x86_64-linux-gnu/libopencv_core.so.4.2.0
 multi_sensor_mot: CMakeFiles/multi_sensor_mot.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Linking CXX executable multi_sensor_mot"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/tengfeida/sensor_fusion_mot/multi_sensor_mot/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Linking CXX executable multi_sensor_mot"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/multi_sensor_mot.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
