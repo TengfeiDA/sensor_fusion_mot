@@ -11,6 +11,7 @@ CMakeFiles/multi_sensor_mot.dir/main.cc.o: ../kalman_filter.h
 CMakeFiles/multi_sensor_mot.dir/main.cc.o: ../lidar_detection.h
 CMakeFiles/multi_sensor_mot.dir/main.cc.o: ../main.cc
 CMakeFiles/multi_sensor_mot.dir/main.cc.o: ../math.h
+CMakeFiles/multi_sensor_mot.dir/main.cc.o: ../radar_detection.h
 CMakeFiles/multi_sensor_mot.dir/main.cc.o: ../track.h
 CMakeFiles/multi_sensor_mot.dir/main.cc.o: ../tracker.h
 CMakeFiles/multi_sensor_mot.dir/main.cc.o: ../visualizer.h
@@ -19,6 +20,7 @@ CMakeFiles/multi_sensor_mot.dir/track.cc.o: ../camera_detection.h
 CMakeFiles/multi_sensor_mot.dir/track.cc.o: ../kalman_filter.h
 CMakeFiles/multi_sensor_mot.dir/track.cc.o: ../lidar_detection.h
 CMakeFiles/multi_sensor_mot.dir/track.cc.o: ../math.h
+CMakeFiles/multi_sensor_mot.dir/track.cc.o: ../radar_detection.h
 CMakeFiles/multi_sensor_mot.dir/track.cc.o: ../track.cc
 CMakeFiles/multi_sensor_mot.dir/track.cc.o: ../track.h
 
@@ -27,6 +29,7 @@ CMakeFiles/multi_sensor_mot.dir/tracker.cc.o: ../hungarian.h
 CMakeFiles/multi_sensor_mot.dir/tracker.cc.o: ../kalman_filter.h
 CMakeFiles/multi_sensor_mot.dir/tracker.cc.o: ../lidar_detection.h
 CMakeFiles/multi_sensor_mot.dir/tracker.cc.o: ../math.h
+CMakeFiles/multi_sensor_mot.dir/tracker.cc.o: ../radar_detection.h
 CMakeFiles/multi_sensor_mot.dir/tracker.cc.o: ../track.h
 CMakeFiles/multi_sensor_mot.dir/tracker.cc.o: ../tracker.cc
 CMakeFiles/multi_sensor_mot.dir/tracker.cc.o: ../tracker.h
@@ -36,6 +39,7 @@ CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o: ../camera_detection.h
 CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o: ../kalman_filter.h
 CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o: ../lidar_detection.h
 CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o: ../math.h
+CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o: ../radar_detection.h
 CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o: ../track.h
 CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o: ../visualizer.cc
 CMakeFiles/multi_sensor_mot.dir/visualizer.cc.o: ../visualizer.h

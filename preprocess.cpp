@@ -1,5 +1,7 @@
+#include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -12,6 +14,18 @@
 using namespace std;
 
 static constexpr double Pi = 3.141562954;
+
+struct Vec2d {
+  Vec2d() = default;
+  Vec2d(double xx, double yy) : x(xx), y(yy) {}
+  Vec2d(Json::Value json_vec_2d)
+      : x(json_vec_2d[0].asDouble()), y(json_vec_2d[1].asDouble()) {}
+
+  double Length() { return sqrt(x * x + y * y); }
+
+  double x;
+  double y;
+};
 
 struct Vec3d {
   Vec3d() = default;
@@ -126,6 +140,17 @@ struct Track {
   string instance_token;
   int category;
   Detection detection;
+};
+
+struct RadarDetection {
+  RadarDetection() = default;
+  RadarDetection(uint32_t id, double timestamp, Vec2d position, Vec2d velocity)
+      : id(id), timestamp(timestamp), position(position), velocity(velocity) {}
+
+  uint32_t id;
+  double timestamp;
+  Vec2d position;
+  Vec2d velocity;
 };
 
 void AddRandomNoise(const Vec3d ego_position, Vec3d* position, Vec3d* size,
@@ -430,7 +455,6 @@ void GetDetections(const vector<string>& all_samples_token,
 }
 
 void GetFrontCameraImages(const vector<string>& all_samples_token,
-                          const vector<double>& all_samples_timestamps,
                           const string& scene_name) {
   const string sample_data_filename = "data/v1.0-mini/sample_data.json";
   ifstream sample_data_file(sample_data_filename, ios::binary);
@@ -526,14 +550,6 @@ void GetFrontCameraImages(const vector<string>& all_samples_token,
   }
   ego_pose_file.close();
 
-  string output_filename =
-      "./multi_sensor_mot/data/" + scene_name + "_camera_detections.dat";
-  ofstream output_file(output_filename, ios::out | ios::trunc);
-  if (!output_file.is_open()) {
-    cout << "Fail to open " << output_filename << endl;
-    return;
-  }
-
   const std::string camera_detection_filename =
       "./multi_sensor_mot/data/" + scene_name + "-bboxes.dat";
   std::ifstream srcFile(camera_detection_filename, std::ios::in);
@@ -551,6 +567,14 @@ void GetFrontCameraImages(const vector<string>& all_samples_token,
     camera_detections.push_back(detections);
   }
   srcFile.close();
+
+  string output_filename =
+      "./data/samples/" + scene_name + "_camera_detections.dat";
+  ofstream output_file(output_filename, ios::out | ios::trunc);
+  if (!output_file.is_open()) {
+    cout << "Fail to open " << output_filename << endl;
+    return;
+  }
 
   output_file << all_camera_timestamps.size() << std::endl;
 
@@ -584,6 +608,164 @@ void GetFrontCameraImages(const vector<string>& all_samples_token,
   cout << "Save camera detections to " << output_filename << endl;
 }
 
+void GetRadarDetections(const vector<string>& all_samples_token,
+                        const string& scene_name) {
+  const string sample_data_filename = "data/v1.0-mini/sample_data.json";
+  ifstream sample_data_file(sample_data_filename, ios::binary);
+  if (!sample_data_file.is_open()) {
+    cout << "Fail to open " << sample_data_filename << endl;
+    return;
+  }
+
+  vector<uint64_t> all_radar_timestamps_uint64;
+  vector<double> all_radar_timestamps;
+
+  Json::Reader reader;
+  Json::Value sample_data;
+  if (reader.parse(sample_data_file, sample_data)) {
+    for (int t = 0; t < all_samples_token.size(); ++t) {
+      for (int i = 0; i < sample_data.size(); ++i) {
+        if (all_samples_token[t] == sample_data[i]["sample_token"].asString()) {
+          const bool is_key_frame = sample_data[i]["is_key_frame"].asBool();
+          const string filename = sample_data[i]["filename"].asString();
+          if (is_key_frame && filename.find("/RADAR_FRONT/") != string::npos) {
+            uint64_t timestamp = sample_data[i]["timestamp"].asUInt64();
+            all_radar_timestamps_uint64.push_back(timestamp);
+            all_radar_timestamps.push_back(static_cast<double>(timestamp) /
+                                           1e6);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  const string ego_pose_filename = "data/v1.0-mini/ego_pose.json";
+  ifstream ego_pose_file(ego_pose_filename, ios::binary);
+  if (!ego_pose_file.is_open()) {
+    cout << "Fail to open " << ego_pose_filename << endl;
+    return;
+  }
+
+  vector<EgoPose> all_samples_ego_poses;
+  Json::Value ego_pose;
+  if (reader.parse(ego_pose_file, ego_pose)) {
+    for (int t = 0; t < all_radar_timestamps_uint64.size(); ++t) {
+      for (int i = 0; i < ego_pose.size(); ++i) {
+        const uint64_t ego_pose_timestamp = ego_pose[i]["timestamp"].asUInt64();
+        if (all_radar_timestamps_uint64[t] == ego_pose_timestamp) {
+          Vec3d angles =
+              QuaternionToEulerAngles(Quaternion(ego_pose[i]["rotation"]));
+          all_samples_ego_poses.emplace_back(
+              ego_pose_timestamp, Vec3d(ego_pose[i]["translation"]), angles.z);
+          break;
+        }
+      }
+    }
+  }
+  ego_pose_file.close();
+
+  const std::string gt_tracks_filename =
+      "./multi_sensor_mot/data/" + scene_name + "_gt_tracks.dat";
+  std::ifstream srcFile(gt_tracks_filename, std::ios::in);
+
+  std::vector<std::vector<Detection>> gt_detections;
+  int frames_num = 0;
+  srcFile >> frames_num;
+  vector<double> all_gt_timestamps;
+  vector<int> all_gt_detection_nums;
+  for (int t = 0; t < frames_num; ++t) {
+    int frame_index, detections_num;
+    double timestamp;
+    srcFile >> frame_index >> detections_num >> timestamp;
+    all_gt_detection_nums.push_back(detections_num);
+    all_gt_timestamps.push_back(timestamp);
+
+    std::vector<Detection> detections(detections_num);
+    for (int i = 0; i < detections_num; ++i) {
+      int t_id, type;
+      double x, y, z, w, l, h, yaw;
+      srcFile >> t_id >> type >> x >> y >> z >> w >> l >> h >> yaw;
+      detections[i] = Detection(t_id, timestamp, Vec3d(x, y, z), Vec3d(w, l, h),
+                                Vec3d(0, 0, yaw));
+    }
+    gt_detections.push_back(detections);
+  }
+  srcFile.close();
+
+  std::srand(std::time(0));
+  std::vector<std::vector<RadarDetection>> radar_detections;
+  for (int t = 0; t < all_radar_timestamps.size(); ++t) {
+    std::vector<RadarDetection> detections;
+    int radar_id = 0;
+    int k = 0;
+    for (; k < all_gt_timestamps.size(); ++k) {
+      if (all_gt_timestamps[k] > all_radar_timestamps[t]) break;
+    }
+    if (k > 0 && k < all_gt_timestamps.size()) {
+      const double time_interval =
+          all_gt_timestamps[k] - all_gt_timestamps[k - 1];
+      const double weight =
+          (all_radar_timestamps[t] - all_gt_timestamps[k - 1]) / time_interval;
+      for (int i = 0; i < gt_detections[k - 1].size(); ++i) {
+        const Detection& prev = gt_detections[k - 1][i];
+        auto iter =
+            std::find_if(gt_detections[k].begin(), gt_detections[k].end(),
+                         [&prev](const Detection& next) -> bool {
+                           return prev.id == next.id;
+                         });
+        if (iter != gt_detections[k].end()) {
+          const double random =
+              static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
+          if (random < 0.8) {
+            const double x =
+                prev.position.x + weight * (iter->position.x - prev.position.x);
+            const double y =
+                prev.position.y + weight * (iter->position.y - prev.position.y);
+            const double vx =
+                (iter->position.x - prev.position.x) / time_interval;
+            const double vy =
+                (iter->position.y - prev.position.y) / time_interval;
+            detections.emplace_back(++radar_id, all_radar_timestamps[t],
+                                    Vec2d(x, y), Vec2d(vx, vy));
+          }
+        }
+      }
+    }
+    radar_detections.push_back(detections);
+  }
+
+  string output_filename =
+      "./multi_sensor_mot/data/" + scene_name + "_radar_detections.dat";
+  ofstream output_file(output_filename, ios::out | ios::trunc);
+  if (!output_file.is_open()) {
+    cout << "Fail to open " << output_filename << endl;
+    return;
+  }
+
+  output_file << all_radar_timestamps.size() << std::endl;
+
+  for (int t = 0; t < all_radar_timestamps.size(); ++t) {
+    output_file << t + 1 << " " << radar_detections[t].size() << " " << fixed
+                << setw(16) << setprecision(6) << all_radar_timestamps[t]
+                << endl;
+    output_file << all_samples_ego_poses[t].position.x << " "
+                << all_samples_ego_poses[t].position.y << " "
+                << all_samples_ego_poses[t].yaw << endl;
+
+    for (int i = 0; i < radar_detections[t].size(); ++i) {
+      output_file << radar_detections[t][i].id << " "
+                  << radar_detections[t][i].position.x << " "
+                  << radar_detections[t][i].position.y << " "
+                  << radar_detections[t][i].velocity.x << " "
+                  << radar_detections[t][i].velocity.y << endl;
+    }
+    output_file << endl;
+  }
+  output_file.close();
+  cout << "Save radar detections to " << output_filename << endl;
+}
+
 void readDataFromJsonFile() {
   const string scene_filename = "data/v1.0-mini/scene.json";
   ifstream srcFile(scene_filename, ios::binary);
@@ -603,9 +785,8 @@ void readDataFromJsonFile() {
           scene[scene_index]["first_sample_token"].asString();
       string last_sample_token =
           scene[scene_index]["last_sample_token"].asString();
-      cout << "scene name: " << scene_name << " num_of_samples "
-           << num_of_samples << " first_sample_token " << first_sample_token
-           << " last_sample_token " << last_sample_token << endl;
+      cout << "scene_index: " << scene_index + 1 << " name: " << scene_name
+           << " num_of_samples " << num_of_samples << endl;
 
       vector<string> all_samples_token;
       vector<double> all_samples_timestamps;
@@ -616,13 +797,15 @@ void readDataFromJsonFile() {
                           &all_samples_timestamps_uint64,
                           &all_samples_ego_poses);
 
-      GetDetections(all_samples_token, all_samples_timestamps,
-                    all_samples_ego_poses, scene_name);
+      // GetDetections(all_samples_token, all_samples_timestamps,
+      //               all_samples_ego_poses, scene_name);
 
       // GetTracks(all_samples_token, all_samples_timestamps, scene_name);
 
-      // GetFrontCameraImages(all_samples_token, all_samples_timestamps,
+      // GetFrontCameraImages(all_samples_token,
       //                      scene_name);
+
+      GetRadarDetections(all_samples_token, scene_name);
     }
   }
   srcFile.close();

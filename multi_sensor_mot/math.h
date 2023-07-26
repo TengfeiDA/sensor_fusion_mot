@@ -67,10 +67,14 @@ class Transformation2d {
   Vec2d translation() const { return translation_; }
   double theta() const { return theta_; }
 
+  Vec2d Rotate(const Vec2d point) const {
+    return Vec2d(point.x() * std::cos(theta_) + point.y() * std::sin(theta_),
+                 point.y() * std::cos(theta_) - point.x() * std::sin(theta_));
+  }
+
   Vec2d Transform(const Vec2d point) const {
     const Vec2d p = point - translation_;
-    return Vec2d(p.x() * std::cos(theta_) + p.y() * std::sin(theta_),
-                 p.y() * std::cos(theta_) - p.x() * std::sin(theta_));
+    return Rotate(p);
   }
 
  private:

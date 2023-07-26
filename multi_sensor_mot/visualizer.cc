@@ -58,6 +58,7 @@ void Visualizer::DrawTracks(const std::vector<Track>& tracks) {
     // if (!track.IsConfirmed()) continue;
     const std::vector<Vec2d> corners = track.GetCorners();
     std::vector<cv::Point> corners_image;
+
     cv::Point id_pos;
     for (int i = 0; i < corners.size(); ++i) {
       const Vec2d corner_vehicle = world_to_vehicle_.Transform(corners[i]);
@@ -71,26 +72,15 @@ void Visualizer::DrawTracks(const std::vector<Track>& tracks) {
     cv::putText(bev_image_, std::to_string(track.id()),
                 cv::Point(id_pos.x + 2, id_pos.y - 2), cv::FONT_HERSHEY_PLAIN,
                 1, kRedColor, 1, CV_AA);
-  }
-}
 
-void Visualizer::DrawGTTracks(const std::vector<Track>& tracks) {
-  for (const Track& track : tracks) {
-    const std::vector<Vec2d> corners = track.GetCorners();
-    std::vector<cv::Point> corners_image;
-    cv::Point id_pos;
-    for (int i = 0; i < corners.size(); ++i) {
-      const Vec2d corner_vehicle = world_to_vehicle_.Transform(corners[i]);
-      const cv::Point p = FromVehicleToImage(corner_vehicle);
-      if (IsPointBeyondGridImage(p)) break;
-      corners_image.push_back(p);
-      if (i == 1) id_pos = p;
-    }
-    if (corners_image.size() < 4) continue;
-    cv::polylines(bev_image_, corners_image, true, kGreenColor, 1, 8, 0);
-    cv::putText(bev_image_, std::to_string(track.id()),
-                cv::Point(id_pos.x + 2, id_pos.y - 2), cv::FONT_HERSHEY_PLAIN,
-                1, kGreenColor, 1, CV_AA);
+    const Vec2d center_vehicle =
+        world_to_vehicle_.Transform(track.position().xy());
+    const cv::Point center_image = FromVehicleToImage(center_vehicle);
+    const Vec2d velocity_vehicle =
+        center_vehicle + world_to_vehicle_.Rotate(track.velocity().xy());
+    const cv::Point velocity_end = FromVehicleToImage(velocity_vehicle);
+    cv::arrowedLine(bev_image_, center_image, velocity_end, kRedColor, 1, 8, 0,
+                    0.1);
   }
 }
 

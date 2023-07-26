@@ -2,20 +2,26 @@
 #include "track.h"
 
 namespace {
-static constexpr double kInitPositionVariance = 1.0;
-static constexpr double kInitVelocityVariance = 4.0;
-static constexpr double kInitAccelerationVariance = 1.0;
+
+static constexpr double Pi = 3.14159265358979323846;
+
+static constexpr double kInitPositionVariance = 4.0;
+static constexpr double kInitVelocityVariance = 9.0;
+static constexpr double kInitAccelerationVariance = 2.0;
 static constexpr double kInitYawVariance = 0.01;
 static constexpr double kInitYawRateVariance = 0.01;
 
 static constexpr double kPredictPositionVariance = 0.25;
-static constexpr double kPredictVelocityVariance = 1.0;
-static constexpr double kPredictAccelerationVariance = 0.25;
+static constexpr double kPredictVelocityVariance = 0.09;
+static constexpr double kPredictAccelerationVariance = 0.04;
 static constexpr double kPredictYawVariance = 0.01;
 static constexpr double kPredictYawRateVariance = 0.01;
 
 static constexpr double kLidarPositionNoiseVariance = 0.25;
 static constexpr double kLidarYawNoiseVariance = 0.01;
+
+static constexpr double kRadarPositionNoiseVariance = 1.0;
+static constexpr double kRadarVelocityNoiseVariance = 0.25;
 
 static constexpr double kSmoothFilterCoefficient = 0.7;
 
@@ -36,12 +42,14 @@ Track::Track(const LidarDetection& detection, const Category category)
       created_timestamp_(detection.timestamp()),
       timestamp_(detection.timestamp()),
       last_lidar_update_timestamp_(detection.timestamp()),
+      last_radar_update_timestamp_(0.0),
       last_camera_update_timestamp_(0.0),
       category_(category),
       position_(detection.position()),
       size_(detection.size()),
       yaw_(detection.yaw()),
       associated_lidar_detections_cnt_(1),
+      associated_radar_detections_cnt_(0),
       associated_camera_detections_cnt_(0) {
   velocity_ = Vec3d();
   acceleration_ = Vec3d();
@@ -87,14 +95,17 @@ void Track::Predict(const double timestamp) {
       1, 0, 0, dt, 0, 0, 0, 0, 0, 0, 1, 0, 0, dt, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
 
+  static constexpr double kStandardTimeInterval = 0.5;  // second
+  const double time_scale = dt / kStandardTimeInterval;
+
   Eigen::Matrix<double, 9, 9> predict_noise_cov =
       Eigen::Matrix<double, 9, 9>::Zero();
   predict_noise_cov(0, 0) = predict_noise_cov(1, 1) = predict_noise_cov(2, 2) =
-      kPredictPositionVariance;
+      time_scale * kPredictPositionVariance;
   predict_noise_cov(3, 3) = predict_noise_cov(4, 4) = predict_noise_cov(5, 5) =
-      kPredictVelocityVariance;
+      time_scale * kPredictVelocityVariance;
   predict_noise_cov(6, 6) = predict_noise_cov(7, 7) = predict_noise_cov(8, 8) =
-      kPredictAccelerationVariance;
+      time_scale * kPredictAccelerationVariance;
 
   motion_kf_.Predict(transition_matrix, predict_noise_cov);
   position_ = Vec3d(motion_kf_.state()[0], motion_kf_.state()[1],
@@ -107,7 +118,8 @@ void Track::Predict(const double timestamp) {
   const Eigen::Matrix<double, 2, 2> yaw_transition_matrix{{1, dt}, {0, 1}};
 
   Eigen::Matrix<double, 2, 2> yaw_predict_noise_cov{
-      {kPredictYawVariance, 0}, {0, kPredictYawRateVariance}};
+      {time_scale * kPredictYawVariance, 0},
+      {0, time_scale * kPredictYawRateVariance}};
 
   yaw_kf_.Predict(yaw_transition_matrix, yaw_predict_noise_cov);
   yaw_ = yaw_kf_.state()[0];
@@ -141,6 +153,10 @@ void Track::Update(const LidarDetection& detection) {
   Eigen::Matrix<double, 1, 2> yaw_measure_matrix{1, 0};
   yaw_kf_.Update<1>(yaw_measurement, yaw_measure_noise_cov, yaw_measure_matrix);
   yaw_ = yaw_kf_.state()[0];
+  if (yaw_ > Pi)
+    yaw_ -= 2 * Pi;
+  else if (yaw_ < -Pi)
+    yaw_ += 2 * Pi;
   yaw_rate_ = yaw_kf_.state()[1];
 
   size_ = size_ * kSmoothFilterCoefficient +
@@ -148,6 +164,38 @@ void Track::Update(const LidarDetection& detection) {
 
   last_lidar_update_timestamp_ = detection.timestamp();
   ++associated_lidar_detections_cnt_;
+}
+
+void Track::Update(const RadarDetection& detection) {
+  const Eigen::Matrix<double, 4, 1> measurement{
+      detection.position().x(), detection.position().y(),
+      detection.velocity().x(), detection.velocity().y()};
+  const double noise_scale =
+      detection.distance_to_ego() < kReliableDetectionRange ? 1.0 : 2.0;
+  Eigen::Matrix<double, 4, 4> measure_noise_cov =
+      Eigen::Matrix<double, 4, 4>::Zero();
+  measure_noise_cov.block(0, 0, 2, 2) = noise_scale *
+                                        kRadarPositionNoiseVariance *
+                                        Eigen::Matrix<double, 2, 2>::Identity();
+  measure_noise_cov.block(2, 2, 2, 2) = noise_scale *
+                                        kRadarVelocityNoiseVariance *
+                                        Eigen::Matrix<double, 2, 2>::Identity();
+
+  Eigen::Matrix<double, 4, 9> measure_matrix =
+      Eigen::Matrix<double, 4, 9>::Zero();
+  measure_matrix.block(0, 0, 2, 2) = Eigen::Matrix<double, 2, 2>::Identity();
+  measure_matrix.block(2, 3, 2, 2) = Eigen::Matrix<double, 2, 2>::Identity();
+  motion_kf_.Update<4>(measurement, measure_noise_cov, measure_matrix);
+
+  position_ = Vec3d(motion_kf_.state()[0], motion_kf_.state()[1],
+                    motion_kf_.state()[2]);
+  velocity_ = Vec3d(motion_kf_.state()[3], motion_kf_.state()[4],
+                    motion_kf_.state()[5]);
+  acceleration_ = Vec3d(motion_kf_.state()[6], motion_kf_.state()[7],
+                        motion_kf_.state()[8]);
+
+  last_radar_update_timestamp_ = detection.timestamp();
+  ++associated_radar_detections_cnt_;
 }
 
 void Track::Update(const CameraDetection& detection) {
@@ -164,15 +212,20 @@ bool Track::IsLost() const {
   return timestamp_ - last_lidar_update_timestamp_ > kTrackLostTimeGating;
 }
 
-bool Track::IsConfirmed() const { return associated_lidar_detections_cnt_ > 2; }
+bool Track::IsConfirmed() const {
+  static constexpr int kMinObservationTimes = 3;
+  return associated_lidar_detections_cnt_ + associated_radar_detections_cnt_ +
+             associated_camera_detections_cnt_ >=
+         kMinObservationTimes;
+}
 
 std::vector<Vec2d> Track::GetCorners() const {
   const double theta = -yaw_;
   const Vec2d center(position_.x(), position_.y());
-  const Vec2d tl_shift(0.5 * size_.y(), 0.5 * size_.x());
-  const Vec2d tr_shift(0.5 * size_.y(), -0.5 * size_.x());
-  const Vec2d bl_shift(-0.5 * size_.y(), 0.5 * size_.x());
-  const Vec2d br_shift(-0.5 * size_.y(), -0.5 * size_.x());
+  const Vec2d tl_shift(0.5 * size_.x(), 0.5 * size_.y());
+  const Vec2d tr_shift(0.5 * size_.x(), -0.5 * size_.y());
+  const Vec2d bl_shift(-0.5 * size_.x(), 0.5 * size_.y());
+  const Vec2d br_shift(-0.5 * size_.x(), -0.5 * size_.y());
   const Vec2d top_left = center + RotateByTheta(tl_shift, theta);
   const Vec2d top_right = center + RotateByTheta(tr_shift, theta);
   const Vec2d bottom_left = center + RotateByTheta(bl_shift, theta);

@@ -32,10 +32,10 @@ class Visualizer {
   double timestamp_;
   Transformation2d world_to_vehicle_;
 
-  static constexpr double kMaxFrontRange = 70.0;
-  static constexpr double kMaxBackRange = -40.0;
-  static constexpr double kMaxLeftRange = 40.0;
-  static constexpr double kMaxRightRange = -40.0;
+  static constexpr double kMaxFrontRange = 90.0;
+  static constexpr double kMaxBackRange = -50.0;
+  static constexpr double kMaxLeftRange = 50.0;
+  static constexpr double kMaxRightRange = -50.0;
   static constexpr double kGridSize = 0.1;
 
   static const int kSizeMargin = 0;

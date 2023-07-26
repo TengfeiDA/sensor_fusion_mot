@@ -7,6 +7,7 @@
 #include "kalman_filter.h"
 #include "lidar_detection.h"
 #include "math.h"
+#include "radar_detection.h"
 
 class Track {
  public:
@@ -35,14 +36,15 @@ class Track {
   Vec3d velocity() const { return velocity_; }
   Vec3d acceleration() const { return acceleration_; }
   Vec3d size() const { return size_; }
-  double length() const { return size_.y(); }
-  double width() const { return size_.x(); }
+  double length() const { return size_.x(); }
+  double width() const { return size_.y(); }
   double height() const { return size_.z(); }
   double yaw() const { return yaw_; }
   double yaw_rate() const { return yaw_rate_; }
 
   void Predict(const double timestamp);
   void Update(const LidarDetection& detection);
+  void Update(const RadarDetection& detection);
   void Update(const CameraDetection& detection);
 
   bool IsLost() const;
@@ -65,12 +67,13 @@ class Track {
   double created_timestamp_;
   double timestamp_;
   double last_lidar_update_timestamp_;
+  double last_radar_update_timestamp_;
   double last_camera_update_timestamp_;
   Vec3d position_;
   Vec3d velocity_;
   Vec3d acceleration_;
   KalmanFilter<9> motion_kf_;
-  Vec3d size_;  // Bounding box size in meters as width, length, height.
+  Vec3d size_;
   double yaw_;
   double yaw_rate_;
   KalmanFilter<2> yaw_kf_;
@@ -79,6 +82,7 @@ class Track {
   std::map<Category, int> category_vote_;
 
   int associated_lidar_detections_cnt_;
+  int associated_radar_detections_cnt_;
   int associated_camera_detections_cnt_;
 
   static uint32_t next_track_id_;

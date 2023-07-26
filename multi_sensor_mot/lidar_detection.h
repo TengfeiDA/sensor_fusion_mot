@@ -35,7 +35,7 @@ class LidarDetection {
   uint32_t id_;
   double timestamp_;
   Vec3d position_;
-  Vec3d size_;  // Bounding box size in meters as width, length, height.
+  Vec3d size_;
   double yaw_;
   double distance_to_ego_;
 };
